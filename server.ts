@@ -19,71 +19,6 @@ const requestContext = new AsyncLocalStorage<{ authHeader: string | undefined }>
 // Setup MCP Server
 const mcpServer = new McpServer({ name: "freshfront-project-creator", version: "1.0.0" });
 
-// Relay iframe HTML (this is the widget delivered to ChatGPT)
-const widgetHtml = `<!DOCTYPE html>
-<html>
-<head>
-  <style>body,html,iframe{margin:0;padding:0;width:100%;height:100vh;border:none;overflow:hidden;}</style>
-</head>
-<body>
-  <iframe id="inner" src="${appUrl}/?widget=project" allow="clipboard-read; clipboard-write; popup"></iframe>
-  <script>
-    const inner = document.getElementById('inner');
-    
-    // Sometimes the iframe isn't loaded right away.
-    // We queue messages from ChatGPT to send them when inner confirms it's ready.
-    let isInnerReady = false;
-    let queuedMessages = [];
-
-    window.addEventListener('message', (e) => {
-      if (e.source === inner.contentWindow) {
-        if (e.data === 'inner-ready') {
-          isInnerReady = true;
-          queuedMessages.forEach(msg => {
-            inner.contentWindow.postMessage(msg, '*');
-          });
-          queuedMessages = [];
-        } else {
-          window.parent.postMessage(e.data, '*');
-        }
-      } else if (e.source === window.parent) {
-        if (isInnerReady && inner.contentWindow) {
-          inner.contentWindow.postMessage(e.data, '*');
-        } else {
-          queuedMessages.push(e.data);
-        }
-      }
-    });
-  </script>
-</body>
-</html>`;
-
-registerAppResource(
-  mcpServer,
-  "project-widget",
-  "ui://widget/project.html",
-  {},
-  async () => ({
-    contents: [
-      {
-        uri: "ui://widget/project.html",
-        mimeType: RESOURCE_MIME_TYPE,
-        text: widgetHtml,
-        _meta: {
-          ui: {
-            domain: appUrl,
-            csp: {
-              connectDomains: [appUrl],
-              resourceDomains: ["https://*.oaistatic.com"],
-              frameDomains: [appUrl]
-            }
-          }
-        }
-      },
-    ],
-  })
-);
-
 registerAppTool(
   mcpServer,
   "draft_new_project",
@@ -97,9 +32,6 @@ registerAppTool(
     securitySchemes: [
       { type: "oauth2", scopes: ["project.write"] }
     ],
-    _meta: {
-      ui: { resourceUri: "ui://widget/project.html" },
-    },
   },
   async (args) => {
     // -------------------------------------------------------------
@@ -183,7 +115,7 @@ registerAppTool(
     };
     
     return {
-      content: [{ type: "text", text: "Draft project prepared using Gemini AI. Please review and save it in the widget UI." }],
+      content: [{ type: "text", text: "Draft project prepared using Gemini AI. Please review the details below. We can modify or save it right here in the chat." }],
       structuredContent: { projectDraft: payload },
     };
   }
