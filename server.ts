@@ -2,7 +2,6 @@ import express from "express";
 import { createServer as createViteServer } from "vite";
 import path from "path";
 import { fileURLToPath } from "url";
-import { AsyncLocalStorage } from "async_hooks";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { registerAppResource, registerAppTool, RESOURCE_MIME_TYPE } from "@modelcontextprotocol/ext-apps/server";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
@@ -12,9 +11,6 @@ import { z } from "zod";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = 3000;
 const appUrl = process.env.APP_URL ? process.env.APP_URL.replace(/\/$/, '') : `http://localhost:${PORT}`;
-
-// Provide access to the HTTP request state inside MCP tool handlers
-const requestContext = new AsyncLocalStorage<{ authHeader: string | undefined }>();
 
 // Setup MCP Server
 const mcpServer = new McpServer({ name: "freshfront-project-creator", version: "1.0.0" });
@@ -83,36 +79,12 @@ registerAppTool(
     inputSchema: {
       context: z.string().describe("A summary of the chat context or the user's idea for the project."),
     },
-    // @ts-ignore - The ext-apps SDK does not yet strictly type the securitySchemes array, but the protocol passes it through
-    securitySchemes: [
-      { type: "oauth2", scopes: ["project.write"] }
-    ],
     _meta: {
       ui: { resourceUri: "ui://widget/project.html" },
     },
   },
   async (args) => {
     // -------------------------------------------------------------
-    // MCP OAuth 2.1 Enforcement
-    // -------------------------------------------------------------
-    const contextStore = requestContext.getStore();
-    const token = contextStore?.authHeader?.replace(/^Bearer\s/i, "");
-    
-    // Check token logic here. You must verify validity with your Auth System (Auth0/etc).
-    // This is a stub showing the exact response shape required by the ChatGPT MCP SDK.
-    if (!token && process.env.REQUIRE_OAUTH === "true") {
-      return {
-        isError: true,
-        content: [{ type: "text", text: "Authentication required: no access token provided." }],
-        _meta: {
-          "mcp/www_authenticate": [
-            `'Bearer resource_metadata="${appUrl}/.well-known/oauth-protected-resource", error="insufficient_scope", error_description="You need to login to continue"'`
-          ]
-        }
-      };
-    }
-    // -------------------------------------------------------------
-
     const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
     
     let generated;
@@ -182,23 +154,6 @@ registerAppTool(
 async function startServer() {
   const app = express();
 
-  // -------------------------------------------------------------
-  // MCP OAuth 2.1 Discovery Endpoints
-  // -------------------------------------------------------------
-  app.get("/.well-known/oauth-protected-resource", (req, res) => {
-    const authorizer = process.env.OAUTH_AUTHORIZER_URL || "https://your-auth-domain.auth0.com";
-    res.json({
-      resource: appUrl,
-      authorization_servers: [authorizer],
-      scopes_supported: ["project.write", "openid", "email", "profile"],
-      resource_documentation: "https://freshfront.dev/docs",
-      // These help with discovery of capabilities
-      token_endpoint_auth_methods_supported: ["none", "client_secret_post"],
-      introspection_endpoint: `${authorizer}/introspect`,
-      registration_endpoint: `${authorizer}/oidc/register`
-    });
-  });
-
   // Handle MCP Requests
   const MCP_PATH = "/mcp";
   app.options(MCP_PATH, (req, res) => {
@@ -211,32 +166,27 @@ async function startServer() {
 
   app.all(MCP_PATH, async (req, res, next) => {
     if (['POST', 'GET', 'DELETE'].includes(req.method)) {
-      requestContext.run({ authHeader: req.headers.authorization }, async () => {
-        res.header("Access-Control-Allow-Origin", "*");
-        res.header("Access-Control-Expose-Headers", "Mcp-Session-Id");
+      res.header("Access-Control-Allow-Origin", "*");
+      res.header("Access-Control-Expose-Headers", "Mcp-Session-Id");
 
-        const transport = new StreamableHTTPServerTransport({
-          sessionIdGenerator: undefined, // stateless mode
-          enableJsonResponse: true,
-        });
-
-        res.on("close", () => {
-          transport.close();
-        });
-
-        try {
-          // If the token is missing and we explicitly want to trigger 401 right here at the transport boundary
-          // you can return 401, but returning the WWW-Authenticate header dynamically via MCP tool error 
-          // triggers the chat-level OAuth linking UI cleanly.
-          await mcpServer.connect(transport);
-          await transport.handleRequest(req, res);
-        } catch (error) {
-          console.error("Error handling MCP request:", error);
-          if (!res.headersSent) {
-            res.status(500).send("Internal server error");
-          }
-        }
+      const transport = new StreamableHTTPServerTransport({
+        sessionIdGenerator: undefined, // stateless mode
+        enableJsonResponse: true,
       });
+
+      res.on("close", () => {
+        transport.close();
+      });
+
+      try {
+        await mcpServer.connect(transport);
+        await transport.handleRequest(req, res);
+      } catch (error) {
+        console.error("Error handling MCP request:", error);
+        if (!res.headersSent) {
+          res.status(500).send("Internal server error");
+        }
+      }
     } else {
       next();
     }
