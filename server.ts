@@ -106,7 +106,7 @@ registerAppTool(
         content: [{ type: "text", text: "Authentication required: no access token provided." }],
         _meta: {
           "mcp/www_authenticate": [
-            `'Bearer resource_metadata="${appUrl}/.well-known/oauth-protected-resource", error="insufficient_scope", error_description="You need to login to continue"'`
+            `'Bearer resource_metadata="${appUrl}/.well-known/oauth-protected-resource/mcp", error="insufficient_scope", error_description="You need to login to continue"'`
           ]
         }
       };
@@ -185,10 +185,11 @@ async function startServer() {
   // -------------------------------------------------------------
   // MCP OAuth 2.1 Discovery Endpoints
   // -------------------------------------------------------------
-  app.get("/.well-known/oauth-protected-resource", (req, res) => {
+  app.get(["/.well-known/oauth-protected-resource", "/.well-known/oauth-protected-resource/*"], (req, res) => {
+    res.header("Access-Control-Allow-Origin", "*");
     const authorizer = process.env.OAUTH_AUTHORIZER_URL || "https://your-auth-domain.auth0.com";
     res.json({
-      resource: appUrl,
+      resource: `${appUrl}/mcp`,
       authorization_servers: [authorizer],
       scopes_supported: ["project.write", "openid", "email", "profile"],
       resource_documentation: "https://freshfront.dev/docs",
