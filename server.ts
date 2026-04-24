@@ -69,6 +69,16 @@ registerAppResource(
         uri: "ui://widget/project.html",
         mimeType: RESOURCE_MIME_TYPE,
         text: widgetHtml,
+        _meta: {
+          ui: {
+            domain: appUrl,
+            csp: {
+              connectDomains: [appUrl],
+              resourceDomains: ["https://*.oaistatic.com"],
+              frameDomains: [appUrl]
+            }
+          }
+        }
       },
     ],
   })
