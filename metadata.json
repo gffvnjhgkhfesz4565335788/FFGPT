@@ -1,6 +1,6 @@
 {
-  "name": "",
-  "description": "",
+  "name": "FreshFront Project Creator",
+  "description": "An MCP App that enables ChatGPT users to create new FreshFront research projects directly in their database using Gemini AI to draft project structures.",
   "requestFramePermissions": [],
   "majorCapabilities": []
 }
