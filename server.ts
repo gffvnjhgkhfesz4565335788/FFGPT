@@ -186,16 +186,16 @@ async function startServer() {
   // MCP OAuth 2.1 Discovery Endpoints
   // -------------------------------------------------------------
   app.get("/.well-known/oauth-protected-resource", (req, res) => {
+    const authorizer = process.env.OAUTH_AUTHORIZER_URL || "https://your-auth-domain.auth0.com";
     res.json({
       resource: appUrl,
-      authorization_servers: [
-        process.env.OAUTH_AUTHORIZER_URL || "https://your-auth-domain.auth0.com"
-      ],
+      authorization_servers: [authorizer],
       scopes_supported: ["project.write", "openid", "email", "profile"],
       resource_documentation: "https://freshfront.dev/docs",
       // These help with discovery of capabilities
       token_endpoint_auth_methods_supported: ["none", "client_secret_post"],
-      introspection_endpoint: `${process.env.OAUTH_AUTHORIZER_URL}/introspect`
+      introspection_endpoint: `${authorizer}/introspect`,
+      registration_endpoint: `${authorizer}/oidc/register`
     });
   });
 
