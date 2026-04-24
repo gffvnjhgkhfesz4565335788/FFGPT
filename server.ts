@@ -22,7 +22,7 @@ const widgetHtml = `<!DOCTYPE html>
   <style>body,html,iframe{margin:0;padding:0;width:100%;height:100vh;border:none;overflow:hidden;}</style>
 </head>
 <body>
-  <iframe id="inner" src="${appUrl}/?widget=project" allow="clipboard-read; clipboard-write; popup"></iframe>
+  <iframe id="inner" src="${appUrl}/?widget=project" allow="clipboard-read; clipboard-write;" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"></iframe>
   <script>
     const inner = document.getElementById('inner');
     
